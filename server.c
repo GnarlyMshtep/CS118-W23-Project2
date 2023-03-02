@@ -235,6 +235,7 @@ int main(int argc, char *argv[])
                 else if (recvpkt.seqnum == cliSeqNum) // I am pretty sure this condition is correct
                 {
                     // write payload to file and check errors
+                    fprintf(stderr, "writing %i bytes to file %i\n", recvpkt.length, i);
                     fwrite(recvpkt.payload, 1, recvpkt.length, fp); // write contents to file. This will append over what we previously got
                     if (ferror(fp))
                     {
@@ -243,7 +244,7 @@ int main(int argc, char *argv[])
                     }
 
                     // update sequence num (byte we expect next based on what we have recieved)
-                    cliSeqNum = (cliSeqNum + ackpkt.length) % MAX_SEQN; // update cliSeqNum after we recieve and write to file
+                    cliSeqNum = (cliSeqNum + recvpkt.length) % MAX_SEQN; // update cliSeqNum after we recieve and write to file
 
                     // send packet and print
                     buildPkt(&ackpkt, seqNum, cliSeqNum, 0, 0, 1, 0, 0, NULL);
@@ -253,7 +254,7 @@ int main(int argc, char *argv[])
                 else
                 {
                     // note discareded duplicates
-                    fprintf(stderr, "recieved and discareded duplicate pckt of {starting byte: %i, len: %i}\n", ackpkt.acknum, ackpkt.length);
+                    fprintf(stderr, "recieved and discareded duplicate pckt of {starting byte: %i, len: %i, cliSeqNum: %i}\n", recvpkt.seqnum, ackpkt.length, cliSeqNum);
                 }
             }
         }

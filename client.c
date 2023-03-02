@@ -96,10 +96,11 @@ int isTimeout(double end)
 
 // ===================================== Matan utils start
 
+// this function returns the current numbers in transmission as indicated by s and e.
+// even though that number is {0,...,WND_SIZE} this Range(calc_cur_windowsize) = {1,...,WNDSIZE} where we know if
+// calc_cur_windowsize should return zero by checking variable `zero_packets_in_transmission`
 int calc_cur_windowsize(int s, int e)
 {
-    assert(s != e && "this should be only at the very begining of sending the file and at the very end of sending the file");
-    //! this assert might trigger and then I will remove it. I just want to see what happens, though
     if (s < e)
     {
         return e - s;
@@ -234,7 +235,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    buildPkt(&pkts[0], seqNum, (synackpkt.seqnum + 1) % MAX_SEQN, 0, 0, 1, 0, m, buf); //! why is ack == 1?
+    buildPkt(&pkts[0], seqNum, (synackpkt.seqnum + 1) % MAX_SEQN, 0, 0, 1, 0, m, buf); // ack == 1 becaous eof the protocol
     printSend(&pkts[0], 0);
     sendto(sockfd, &pkts[0], PKT_SIZE, 0, (struct sockaddr *)&servaddr, servaddrlen);
     timer = setTimer();
@@ -261,10 +262,10 @@ int main(int argc, char *argv[])
             printRecv(&ackpkt); //! do we print duplicate ACKs?
             // advance window size if ack was for the first package in window, ignore if it was not (we only resend based on timeout).
             // # this will change for SR
-            if (ackpkt.acknum == pkts[s].seqnum + pkts[s].length) // client sends first byte# to be expected, server sends the next byte expected
+            if (ackpkt.acknum == (pkts[s].seqnum + pkts[s].length) % MAX_SEQN) // client sends first byte# to be expected, server sends the next byte expected
             {
                 // incrememnt start and restart timer
-                s++;
+                s = (s + 1) % WND_SIZE;
                 timer = setTimer(); // I think this is how you restart timer
 
                 if (s == e) // this is true because we just incremented s. If we just incremented e, we could have WND_SIZE packets in transmission
@@ -274,7 +275,8 @@ int main(int argc, char *argv[])
             }
             else
             { // ignore message, we only care about ACKs which are order
-                fprintf(stderr, "recieved and discareded duplicate ACK: %i\n", ackpkt.acknum);
+                fprintf(stderr, "recieved and discareded {duplicate ACK: %i, I think I should recieve: %i, (s,e): (%i,%i) }\n", ackpkt.acknum, (pkts[s].seqnum + pkts[s].length) % MAX_SEQN, s, e);
+                exit(1); //! in general, this is not true, but when no packets are dropped, it generally is
             }
         }
 
@@ -310,7 +312,7 @@ int main(int argc, char *argv[])
             // if read anything, send it
             else if (m > 0) // send packet if there's something to read
             {
-                buildPkt(&pkts[e], seqNum, 0 % MAX_SEQN, 0, 0, 1, 0, m, buf); // correct because: ack number is 0, seqnum updated after send
+                buildPkt(&pkts[e], seqNum, 0 % MAX_SEQN, 0, 0, 0, 0, m, buf); // correct because: ack number is 0, seqnum updated after send
                 printSend(&pkts[e], 0);
                 sendto(sockfd, &pkts[e], PKT_SIZE, 0, (struct sockaddr *)&servaddr, servaddrlen);
                 if (zero_packets_in_transmission) // previously 0, but we send again
@@ -319,9 +321,11 @@ int main(int argc, char *argv[])
                 }
 
                 // remember to build dupack packet
-                buildPkt(&pkts[e], seqNum, 0 % MAX_SEQN, 0, 0, 0, 1, m, buf); //! understand what is required from a DUP packet
+                //! this can be removed unless any flags need to be set. Right now, its not hurting
+                buildPkt(&pkts[e], seqNum, 0 % MAX_SEQN, 0, 0, 0, 0, m, buf); //! I don't think DUPACK is required, but I am not sure
 
                 // update vars for next send
+                assert(s == e ? zero_packets_in_transmission : true); // if s==e we want to increment iff there are zero packets in transmission
                 e = (e + 1) % WND_SIZE;
                 seqNum = (seqNum + m) % MAX_SEQN; // update seqNum to the number of bytes we send
                 zero_packets_in_transmission = false;
