@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h> //bools are nice :)
@@ -97,8 +98,8 @@ int isTimeout(double end)
 
 int calc_cur_windowsize(int s, int e)
 {
-    assert(s != e && "this should be only at the very begining of sending the file and at the very end of sending the file"); //! \
-                                                            this assert might trigger and then I will remove it. I just want to see what happens, though
+    assert(s != e && "this should be only at the very begining of sending the file and at the very end of sending the file");
+    //! this assert might trigger and then I will remove it. I just want to see what happens, though
     if (s < e)
     {
         return e - s;
@@ -220,9 +221,9 @@ int main(int argc, char *argv[])
     int s = 0;                    // start of circular buffer
     int e = 0;                    // end of circular buffer
     // int full = 0;                 //! I don't think we will use this, rather use below to indicate empty
-    bool zero_packets_in_transmission = true; // to differantite between s==e because no packets are in transmission and s==e \
-                                                when WND_SIZE packets are in transmission
-
+    bool zero_packets_in_transmission = true; // to differantite between s==e because no packets are in transmission and s==e
+                                              //  when WND_SIZE packets are in transmission
+    bool sent_entire_file = false;            // tells us when to stop sending
     // =====================================
     // Send First Packet (ACK containing payload) -- this packet is special, still part of handshake
 
@@ -251,8 +252,7 @@ int main(int argc, char *argv[])
     //       single data packet, and then tears down the connection without
     //       handling data loss.
     //       Only for demo purpose. DO NOT USE IT in your final submission
-    while (!feof(fp)) // while we potentially have more to read from the file.
-    //! what if our filesize is a multiple PAYLOAD_SIZE, so that next we try to read from m and read 0?
+    while (!(sent_entire_file && zero_packets_in_transmission)) // while we have more to send/ potentialy waiting for ACs.
     {
         // handle messages from server
         n = recvfrom(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&servaddr, (socklen_t *)&servaddrlen); //! no double while... I think that's okay
@@ -265,60 +265,71 @@ int main(int argc, char *argv[])
             {
                 // incrememnt start and restart timer
                 s++;
-                assert(s < e && "start of window should always be \leq end,\ 
-                where start is the first packet in window we sent and end is\
-                 where we will put the packet we will send next");
                 timer = setTimer(); // I think this is how you restart timer
 
-                if (s == e)
+                if (s == e) // this is true because we just incremented s. If we just incremented e, we could have WND_SIZE packets in transmission
                 {
                     zero_packets_in_transmission = true;
                 }
             }
             else
             { // ignore message, we only care about ACKs which are order
+                fprintf(stderr, "recieved and discareded duplicate ACK: %i\n", ackpkt.acknum);
             }
         }
 
         // resend based on timeout
         if (isTimeout(timer))
         {
-            assert(!zero_packets_in_transmission);
-            //! fix, must resend all packets in cur frame
+            assert(!zero_packets_in_transmission); // we are waiting on nothing
+
             printTimeout(&pkts[s]);
+
+            // send all packets in our window
             for (int i = 0; i < calc_cur_windowsize(s, e); i++)
             {
                 int cur_pkt_idx = (i + s) % WND_SIZE;
                 printSend(&pkts[cur_pkt_idx], 1);
                 sendto(sockfd, &pkts[cur_pkt_idx], PKT_SIZE, 0, (struct sockaddr *)&servaddr, servaddrlen);
             }
+
+            // reset timer after timeout
             timer = setTimer();
         }
         // send new packet if window size permits
-        if (zero_packets_in_transmission || calc_cur_windowsize(s, e) < WND_SIZE)
+        if ((zero_packets_in_transmission || calc_cur_windowsize(s, e) < WND_SIZE) && !sent_entire_file)
         {
+            // read from file and check for error
             m = fread(buf, 1, PAYLOAD_SIZE, fp);
             if (ferror(fp))
             {
                 perror("fread");
                 exit(1);
             }
-            
-            buildPkt(&pkts[e], seqNum, 0 % MAX_SEQN, 0, 0, 1, 0, m, buf); // correct because: ack number is 0, seqnum updated after send
-            printSend(&pkts[e], 0);
-            sendto(sockfd, &pkts[e], PKT_SIZE, 0, (struct sockaddr *)&servaddr, servaddrlen);
-            if (zero_packets_in_transmission) // previously 0, but we send again
+
+            // if read anything, send it
+            else if (m > 0) // send packet if there's something to read
             {
-                timer = setTimer();
+                buildPkt(&pkts[e], seqNum, 0 % MAX_SEQN, 0, 0, 1, 0, m, buf); // correct because: ack number is 0, seqnum updated after send
+                printSend(&pkts[e], 0);
+                sendto(sockfd, &pkts[e], PKT_SIZE, 0, (struct sockaddr *)&servaddr, servaddrlen);
+                if (zero_packets_in_transmission) // previously 0, but we send again
+                {
+                    timer = setTimer();
+                }
+
+                // remember to build dupack packet
+                buildPkt(&pkts[e], seqNum, 0 % MAX_SEQN, 0, 0, 0, 1, m, buf); //! understand what is required from a DUP packet
+
+                // update vars for next send
+                e = (e + 1) % WND_SIZE;
+                seqNum = (seqNum + m) % MAX_SEQN; // update seqNum to the number of bytes we send
+                zero_packets_in_transmission = false;
             }
-
-            // remember to build dupack packet
-            buildPkt(&pkts[e], seqNum, 0 % MAX_SEQN, 0, 0, 0, 1, m, buf); //! understand what is required from a DUP packet
-
-            // update vars for next send
-            e = (e + 1) % WND_SIZE;
-            seqNum += m; // update seqNum to the number of bytes we send
-            zero_packets_in_transmission = false;
+            else // if didn't read anything and no error,  we have reached EOF (and have sent all data, although it may have no been recieved).
+            {
+                sent_entire_file = true;
+            }
         }
     }
 
