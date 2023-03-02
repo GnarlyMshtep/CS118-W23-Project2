@@ -3,7 +3,8 @@
 *file
 client 
 server
-
+out
+output_file
 # Prerequisites
 *.d
 
