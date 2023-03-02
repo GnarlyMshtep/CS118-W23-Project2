@@ -21,3 +21,10 @@
 - do we need to handle file reading errors? 
 - **when does the client send a dup-ack?**
 - what if our filesize is a multiple PAYLOAD_SIZE, so that next we try to read from m and read 0?
+- how does connection tear down work after we have sent all data? definetly wait to recieve all ACKs, right? 
+-     //! what if our filesize is a multiple PAYLOAD_SIZE, so that next we try to read from m and read 0?
+
+
+### Run examples: 
+- `./server 5000 25157`
+- `./client localhost 5000 2254 hpmor0.tex`
