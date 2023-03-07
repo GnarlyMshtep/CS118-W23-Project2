@@ -32,6 +32,7 @@
 ### Issues
 - what if last handshake message drops? 
 - some sort of stopping to timeout state?
+- `.9` drop rate does not worek
 
 
 ### Run examples: 

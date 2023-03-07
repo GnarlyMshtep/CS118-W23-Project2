@@ -14,13 +14,13 @@
 
 // =====================================
 
-#define RTO 500000 /* timeout in microseconds */ //! increased 10x
-#define HDR_SIZE 12                              /* header size*/
-#define PKT_SIZE 524                             /* total packet size */
-#define PAYLOAD_SIZE 512                         /* PKT_SIZE - HDR_SIZE */
-#define WND_SIZE 10                              /* window size*/
-#define MAX_SEQN 25601                           /* number of sequence numbers [0-25600] */
-#define FIN_WAIT 2                               /* seconds to wait after receiving FIN*/
+#define RTO 500000       /* timeout in microseconds */
+#define HDR_SIZE 12      /* header size*/
+#define PKT_SIZE 524     /* total packet size */
+#define PAYLOAD_SIZE 512 /* PKT_SIZE - HDR_SIZE */
+#define WND_SIZE 10      /* window size*/
+#define MAX_SEQN 25601   /* number of sequence numbers [0-25600] */
+#define FIN_WAIT 2       /* seconds to wait after receiving FIN*/
 
 // Packet Structure: Described in Section 2.1.1 of the spec. DO NOT CHANGE!
 struct packet

@@ -220,10 +220,13 @@ int main(int argc, char *argv[])
             n = recvfrom(sockfd, &recvpkt, PKT_SIZE, 0, (struct sockaddr *)&cliaddr, (socklen_t *)&cliaddrlen);
             if (n > 0)
             {
+                printf("in the n>0\n");
                 printRecv(&recvpkt);
 
                 if (recvpkt.fin)
                 {
+                    printf("in the fin\n");
+
                     cliSeqNum = (cliSeqNum + 1) % MAX_SEQN;
 
                     buildPkt(&ackpkt, seqNum, cliSeqNum, 0, 0, 1, 0, 0, NULL);
@@ -234,6 +237,8 @@ int main(int argc, char *argv[])
                 }                                     // the first byte the client sends == the first bit that we expect.
                 else if (recvpkt.seqnum == cliSeqNum) // I am pretty sure this condition is correct
                 {
+                    printf("in the correct\n");
+
                     // write payload to file and check errors
                     // fprintf(stderr, "writing %i bytes to file %i\n", recvpkt.length, i);
                     fwrite(recvpkt.payload, 1, recvpkt.length, fp); // write contents to file. This will append over what we previously got
@@ -251,8 +256,10 @@ int main(int argc, char *argv[])
                     printSend(&ackpkt, 0);
                     sendto(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&cliaddr, cliaddrlen);
                 }
-                if (1) //! this allows the server not to flood and still send duplicate ACKs, avoid flooding
+                else
                 {
+                    printf("in the else\n");
+
                     // server resends the ACK he already has on innapropriate packege. I forgot to implement this at commit 21e5a
                     printSend(&ackpkt, 0);
                     sendto(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&cliaddr, cliaddrlen);
