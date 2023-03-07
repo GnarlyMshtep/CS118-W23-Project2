@@ -110,6 +110,10 @@ int calc_cur_windowsize(int s, int e)
         return WND_SIZE - s + e;
     }
 }
+int mod(int x, int N)
+{
+    return (x % N + N) % N;
+}
 // ===================================== Matan utils end
 
 int main(int argc, char *argv[])
@@ -218,13 +222,14 @@ int main(int argc, char *argv[])
     // CIRCULAR BUFFER VARIABLES
 
     struct packet ackpkt;         // the ACKing packet we recieve from the server
-    struct packet pkts[WND_SIZE]; // packets for our circuilar window
+    struct packet pkts[WND_SIZE]; // packets for our circuilar window //! possibly init to some unreachable value
     int s = 0;                    // start of circular buffer
     int e = 0;                    // end of circular buffer
     // int full = 0;                 //! I don't think we will use this, rather use below to indicate empty
     bool zero_packets_in_transmission = true; // to differantite between s==e because no packets are in transmission and s==e
                                               //  when WND_SIZE packets are in transmission
     bool sent_entire_file = false;            // tells us when to stop sending
+    bool first = true;                        // at first, any ACK we recieve allows us to advance the window
     // =====================================
     // Send First Packet (ACK containing payload) -- this packet is special, still part of handshake
 
@@ -261,23 +266,40 @@ int main(int argc, char *argv[])
         {
             printRecv(&ackpkt); //! do we print duplicate ACKs?
             // advance window size if ack was for the first package in window, ignore if it was not (we only resend based on timeout).
-            // # this will change for SR
-            if (ackpkt.acknum == (pkts[s].seqnum + pkts[s].length) % MAX_SEQN) // client sends first byte# to be expected, server sends the next byte expected
+            //! # this will change for SR
+            // this is okay to do only becuae network does not re-order and it is not possible to recieve lower ACK number than expcted
+
+            if (!first && ackpkt.acknum != (pkts[mod(s - 1, WND_SIZE)].seqnum + pkts[mod(s - 1, WND_SIZE)].length) % MAX_SEQN) // if ACK for previous
             {
-                // incrememnt start and restart timer
+                fprintf(stderr, "recieved and discareded {out-of-order ACK: %i, I think I should recieve: %i, (s,e): (%i,%i) }\n", ackpkt.acknum, (pkts[s].seqnum + pkts[s].length) % MAX_SEQN, s, e);
+            }
+            else // the packet we recieve ACKs some future packet
+            {
+                first = false;
+                while (ackpkt.acknum != (pkts[s].seqnum + pkts[s].length) % MAX_SEQN)
+                {
+                    //! assrt that we neever advance past e
+                    s = (s + 1) % WND_SIZE;
+                }
                 s = (s + 1) % WND_SIZE;
                 timer = setTimer(); // I think this is how you restart timer
-
-                if (s == e) // this is true because we just incremented s. If we just incremented e, we could have WND_SIZE packets in transmission
+                if (s == e)         // this is true because we just incremented s. If we just incremented e, we could have WND_SIZE packets in transmission
                 {
                     zero_packets_in_transmission = true;
                 }
             }
-            else
-            { // ignore message, we only care about ACKs which are order
-                fprintf(stderr, "recieved and discareded {duplicate ACK: %i, I think I should recieve: %i, (s,e): (%i,%i) }\n", ackpkt.acknum, (pkts[s].seqnum + pkts[s].length) % MAX_SEQN, s, e);
-                exit(1); //! in general, this is not true, but when no packets are dropped, it generally is
-            }
+            ////! remove block -- test without drops
+            // if (ackpkt.acknum == (pkts[s].seqnum + pkts[s].length) % MAX_SEQN) // client sends first byte# to be expected, server sends the next byte expected
+            //{
+            //     // incrememnt start and restart timer
+            //     s = (s + 1) % WND_SIZE;
+            //     timer = setTimer(); // I think this is how you restart timer
+            //
+            //    if (s == e) // this is true because we just incremented s. If we just incremented e, we could have WND_SIZE packets in transmission
+            //    {
+            //        zero_packets_in_transmission = true;
+            //    }
+            //}
         }
 
         // resend based on timeout

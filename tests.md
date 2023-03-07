@@ -1,3 +1,5 @@
+**Cur, def some bug in pkg drops**
+
 ### Tests to run 
 - check failing with proxy working `python3 rdproxy.py 5000 9999 0.1`
 - compare output to "large file transmission with no packet loss" 
@@ -23,8 +25,15 @@
 - what if our filesize is a multiple PAYLOAD_SIZE, so that next we try to read from m and read 0?
 - how does connection tear down work after we have sent all data? definetly wait to recieve all ACKs, right? 
 -     //! what if our filesize is a multiple PAYLOAD_SIZE, so that next we try to read from m and read 0?
+- **what if one of the handshake packets is lost?**
+  - I think the code given to us already handles this
+
+### Issues
+- what if last handshake message drops? 
+- some sort of stopping to timeout state?
 
 
 ### Run examples: 
 - `./server 5000 25157`
-- `./client localhost 5000 2254 hpmor0.tex`
+- `./client localhost 9999 2254 hpmor0.tex`
+- `python3 rdproxy.py 5000 9999 .1`

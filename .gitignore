@@ -1,6 +1,6 @@
 #in project 
 *.tex
-*file
+*.file
 client 
 server
 out
