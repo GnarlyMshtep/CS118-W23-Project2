@@ -27,6 +27,7 @@
 -     //! what if our filesize is a multiple PAYLOAD_SIZE, so that next we try to read from m and read 0?
 - **what if one of the handshake packets is lost?**
   - I think the code given to us already handles this
+- decide on if server should send if it has recieved in this loop
 
 ### Issues
 - what if last handshake message drops? 
@@ -37,3 +38,40 @@
 - `./server 5000 25157`
 - `./client localhost 9999 2254 hpmor0.tex`
 - `python3 rdproxy.py 5000 9999 .1`
+
+
+### Broken `fin`
+last (many) messages of `server`: 
+```
+TIMEOUT 25158
+RESEND 25158 0 FIN
+TIMEOUT 25158
+RESEND 25158 0 FIN
+TIMEOUT 25158
+RESEND 25158 0 FIN
+TIMEOUT 25158
+RESEND 25158 0 FIN
+TIMEOUT 25158
+RESEND 25158 0 FIN
+TIMEOUT 25158
+RESEND 25158 0 FIN
+```
+last messages of client: 
+```
+RESEND 17615 0
+RECV 25158 17824 ACK
+SEND 17824 0 FIN
+TIMEOUT 17824
+RESEND 17824 0 FIN
+TIMEOUT 17824
+RESEND 17824 0 FIN
+TIMEOUT 17824
+RESEND 17824 0 FIN
+TIMEOUT 17824
+RESEND 17824 0 FIN
+RECV 25158 17825 ACK
+RECV 25158 0 FIN
+SEND 17825 25159 ACK
+```
+(MPC like problem, never know when to stop waiting, etc)
+when running `python3 rdproxy.py 5000 9999 .7`

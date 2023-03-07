@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
                 else if (recvpkt.seqnum == cliSeqNum) // I am pretty sure this condition is correct
                 {
                     // write payload to file and check errors
-                    //fprintf(stderr, "writing %i bytes to file %i\n", recvpkt.length, i);
+                    // fprintf(stderr, "writing %i bytes to file %i\n", recvpkt.length, i);
                     fwrite(recvpkt.payload, 1, recvpkt.length, fp); // write contents to file. This will append over what we previously got
                     if (ferror(fp))
                     {
@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
                     printSend(&ackpkt, 0);
                     sendto(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&cliaddr, cliaddrlen);
                 }
-                else
+                if (1) //! this allows the server not to flood and still send duplicate ACKs, avoid flooding
                 {
                     // server resends the ACK he already has on innapropriate packege. I forgot to implement this at commit 21e5a
                     printSend(&ackpkt, 0);
