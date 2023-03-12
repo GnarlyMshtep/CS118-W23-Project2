@@ -82,6 +82,44 @@ int isTimeout(double end)
     return ((end - start) < 0.0);
 }
 
+
+// check if packet is already in window
+int checkWindow(int x, struct packet window[]) {
+    for (int i = 0; i < 10; i++) {
+        if (x == window[i].seqnum) {
+            return 1;
+        }
+    }
+    return 0;    
+}
+
+// given a sequence number from the received packet, we break down it into three outputs:
+// -1 means it is already in the window (we already stored in there)
+// -2 means it is out the bounds of our window (not stored in there)
+// other means we are converting the seq num to an index in our window to know where to store in our window
+int SeqnumToWindowIdx(int x, int start, int startseq, struct packet window[])
+{
+    if (checkWindow(x, window)) {
+        return -1;
+    }
+    
+    if (x > (startseq + (512 * 9))) {
+        return -2;
+    }
+    
+    
+    int addtostart = 0;
+    
+    for (int i = 0; i < 10; i++) {
+        if (startseq + (512 * i) == x) {
+            break;
+        }
+        addtostart++;
+    }
+
+    return (start + addtostart) % 10;
+}
+
 // =====================================
 
 int main(int argc, char *argv[])
@@ -125,7 +163,12 @@ int main(int argc, char *argv[])
     //       using setsockopt with SOq_RCVTIMEO instead.
     fcntl(sockfd, F_SETFL, O_NONBLOCK);
 
-    // =====================================
+    // CIRCULAR BUFFER VARIABLES
+
+    struct packet pkts[WND_SIZE]; // packets for our circuilar window 
+    int s = 0;   // keep track of the start of our window
+    int baseSeqNum; // keep a base sequence number that our window is expecting (expected seq num for start of window)
+
 
     for (int i = 1;; i++)
     {
@@ -188,6 +231,8 @@ int main(int argc, char *argv[])
                         seqNum = ackpkt.acknum;
                         cliSeqNum = (ackpkt.seqnum + ackpkt.length) % MAX_SEQN;
 
+                        baseSeqNum = cliSeqNum; // we initialize base seq here (we expect cliseqnum for start of window)
+
                         buildPkt(&ackpkt, seqNum, cliSeqNum, 0, 0, 1, 0, 0, NULL);
                         printSend(&ackpkt, 0);
                         sendto(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&cliaddr, cliaddrlen);
@@ -215,17 +260,17 @@ int main(int argc, char *argv[])
         //       Only for demo purpose. DO NOT USE IT in your final submission
         struct packet recvpkt;
 
+
+
         while (1)
         { // the exit condition is recieving a finished which breaks the loop
             n = recvfrom(sockfd, &recvpkt, PKT_SIZE, 0, (struct sockaddr *)&cliaddr, (socklen_t *)&cliaddrlen);
             if (n > 0)
             {
-                printf("in the n>0\n");
                 printRecv(&recvpkt);
 
                 if (recvpkt.fin)
                 {
-                    printf("in the fin\n");
 
                     cliSeqNum = (cliSeqNum + 1) % MAX_SEQN;
 
@@ -234,37 +279,74 @@ int main(int argc, char *argv[])
                     sendto(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&cliaddr, cliaddrlen);
 
                     break;                            // break on finish is the exit condition
-                }                                     // the first byte the client sends == the first bit that we expect.
-                else if (recvpkt.seqnum == cliSeqNum) // I am pretty sure this condition is correct
-                {
-                    printf("in the correct\n");
-
-                    // write payload to file and check errors
-                    // fprintf(stderr, "writing %i bytes to file %i\n", recvpkt.length, i);
-                    fwrite(recvpkt.payload, 1, recvpkt.length, fp); // write contents to file. This will append over what we previously got
-                    if (ferror(fp))
-                    {
-                        perror("fwrite");
-                        exit(1);
+                }
+                // determine if received packet is already in window, out of bounds, or where to store
+                else {
+                    int idxWindow = SeqnumToWindowIdx(recvpkt.seqnum, s, baseSeqNum, pkts);
+                    
+                    printf("%d\n", idxWindow);
+                    // if not already in window and not of bounds, we store it in the right index
+                    if (idxWindow != -1 && idxWindow != -2) {
+                        pkts[idxWindow] = recvpkt;
                     }
 
-                    // update sequence num (byte we expect next based on what we have recieved)
-                    cliSeqNum = (cliSeqNum + recvpkt.length) % MAX_SEQN; // update cliSeqNum after we recieve and write to file
+                    // if not of bounds, we will send an ACK
+                    if (idxWindow != -2) {
+                        // build packet
+                        seqNum = recvpkt.acknum;
+                        cliSeqNum = (recvpkt.seqnum + recvpkt.length) % MAX_SEQN;
 
-                    // send packet and print
-                    buildPkt(&ackpkt, seqNum, cliSeqNum, 0, 0, 1, 0, 0, NULL);
-                    printSend(&ackpkt, 0);
-                    sendto(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&cliaddr, cliaddrlen);
-                }
-                else
-                {
-                    printf("in the else\n");
+                        buildPkt(&ackpkt, seqNum, cliSeqNum, 0, 0, 1, 0, 0, NULL);
 
-                    // server resends the ACK he already has on innapropriate packege. I forgot to implement this at commit 21e5a
-                    printSend(&ackpkt, 0);
-                    sendto(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&cliaddr, cliaddrlen);
-                    fprintf(stderr, "recieved and discareded duplicate pckt of {starting byte: %i, len: %i, cliSeqNum: %i}\n", recvpkt.seqnum, ackpkt.length, cliSeqNum);
-                }
+                        // if already stored, we resend; else, we just send
+                        if (idxWindow == -1) {
+                            printSend(&ackpkt, 1);
+                        }
+                        else {
+                            printSend(&ackpkt, 0);
+                        }
+                        
+                        sendto(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&cliaddr, cliaddrlen);
+                    }
+
+                    // if we stored it in our window, we will check if it was start of our window
+                    // if it is, then we will keep delivering as long as our packets are in order
+                    if (idxWindow != -1 && idxWindow != -2) {
+
+                        
+                        int currSeqNum = recvpkt.seqnum;
+                        while (currSeqNum == pkts[s].seqnum && pkts[s].length > 0) {
+
+                            struct packet currpkt = pkts[s];
+
+                            // we write to file
+                            // other stuff is debugging stuff
+                            printf("current seq:%d and index: %d\n", currSeqNum, s);
+                            fwrite(currpkt.payload, 1, currpkt.length, fp);
+                            fseek(fp, 0, SEEK_END);
+
+                            // get current position of file pointer, which gives the length of the file
+                            long fileSize = ftell(fp);
+                            if (fileSize == -1) {
+                                perror("Failed to get file size");
+                                fclose(fp);
+                                return 1;
+                            }
+
+                            printf("File size is %ld bytes\n", fileSize);
+
+                            // we update baseseqnum to next seq num we expect for the start
+                            // we also update the index of window to move right
+                            // we update currSegnum += currpkt.length; this is the seqnum number we expect next to deliver
+                            // if next packet in window matches the updated currsegnum, then we can deliver
+                            baseSeqNum = (baseSeqNum + currpkt.length) % MAX_SEQN;
+                            s = (s + 1) % WND_SIZE;
+                            currSeqNum = (currSeqNum + currpkt.length) % MAX_SEQN;
+                        }
+                    }
+
+                }                                    
+
             }
         }
 
