@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <fcntl.h>
-
+#include <assert.h>
 // =====================================
 
 #define RTO 500000       /* timeout in microseconds */
@@ -217,6 +217,8 @@ int main(int argc, char *argv[])
 
         while (1)
         { // the exit condition is recieving a finished which breaks the loop
+
+            memset(&recvpkt, 0, sizeof(recvpkt));
             n = recvfrom(sockfd, &recvpkt, PKT_SIZE, 0, (struct sockaddr *)&cliaddr, (socklen_t *)&cliaddrlen);
             if (n > 0)
             {
@@ -247,6 +249,8 @@ int main(int argc, char *argv[])
                         perror("fwrite");
                         exit(1);
                     }
+                    assert(recvpkt.length > 0);
+                    assert((cliSeqNum + recvpkt.length) % MAX_SEQN != cliSeqNum);
 
                     // update sequence num (byte we expect next based on what we have recieved)
                     cliSeqNum = (cliSeqNum + recvpkt.length) % MAX_SEQN; // update cliSeqNum after we recieve and write to file
@@ -263,7 +267,7 @@ int main(int argc, char *argv[])
                     // server resends the ACK he already has on innapropriate packege. I forgot to implement this at commit 21e5a
                     printSend(&ackpkt, 0);
                     sendto(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&cliaddr, cliaddrlen);
-                    fprintf(stderr, "recieved and discareded duplicate pckt of {starting byte: %i, len: %i, cliSeqNum: %i}\n", recvpkt.seqnum, ackpkt.length, cliSeqNum);
+                    fprintf(stderr, "recieved and discareded duplicate pckt of {starting byte: %i, len: %i, cliSeqNum: %i}\n", recvpkt.seqnum, recvpkt.length, cliSeqNum);
                 }
             }
         }

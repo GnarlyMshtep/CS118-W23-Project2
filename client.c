@@ -261,6 +261,7 @@ int main(int argc, char *argv[])
     while (!(sent_entire_file && zero_packets_in_transmission)) // while we have more to send/ potentialy waiting for ACs.
     {
         // handle messages from server
+        printf("timer: %f, timeout: %i, sent_entire_file: %i,  zero_packets_in_transmission: %i\n", timer, isTimeout(timer), sent_entire_file, zero_packets_in_transmission);
         n = recvfrom(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&servaddr, (socklen_t *)&servaddrlen); //! no double while... I think that's okay
         if (n > 0)
         {
@@ -288,18 +289,6 @@ int main(int argc, char *argv[])
                     zero_packets_in_transmission = true;
                 }
             }
-            ////! remove block -- test without drops
-            // if (ackpkt.acknum == (pkts[s].seqnum + pkts[s].length) % MAX_SEQN) // client sends first byte# to be expected, server sends the next byte expected
-            //{
-            //     // incrememnt start and restart timer
-            //     s = (s + 1) % WND_SIZE;
-            //     timer = setTimer(); // I think this is how you restart timer
-            //
-            //    if (s == e) // this is true because we just incremented s. If we just incremented e, we could have WND_SIZE packets in transmission
-            //    {
-            //        zero_packets_in_transmission = true;
-            //    }
-            //}
         }
 
         // resend based on timeout
