@@ -269,7 +269,7 @@ int main(int argc, char *argv[])
             //! # this will change for SR
             // this is okay to do only becuae network does not re-order and it is not possible to recieve lower ACK number than expcted
 
-            if (!first && ackpkt.acknum != (pkts[mod(s - 1, WND_SIZE)].seqnum + pkts[mod(s - 1, WND_SIZE)].length) % MAX_SEQN) // if ACK for previous
+            if (!first && (ackpkt.acknum == (pkts[mod(s - 1, WND_SIZE)].seqnum + pkts[mod(s - 1, WND_SIZE)].length) % MAX_SEQN)) // if ACK for previous
             {
                 fprintf(stderr, "recieved and discareded {out-of-order ACK: %i, I think I should recieve: %i, (s,e): (%i,%i) }\n", ackpkt.acknum, (pkts[s].seqnum + pkts[s].length) % MAX_SEQN, s, e);
             }

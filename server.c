@@ -220,12 +220,12 @@ int main(int argc, char *argv[])
             n = recvfrom(sockfd, &recvpkt, PKT_SIZE, 0, (struct sockaddr *)&cliaddr, (socklen_t *)&cliaddrlen);
             if (n > 0)
             {
-                printf("in the n>0\n");
+                // printf("in the n>0\n");
                 printRecv(&recvpkt);
 
                 if (recvpkt.fin)
                 {
-                    printf("in the fin\n");
+                    //  printf("in the fin\n");
 
                     cliSeqNum = (cliSeqNum + 1) % MAX_SEQN;
 
@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
                 }                                     // the first byte the client sends == the first bit that we expect.
                 else if (recvpkt.seqnum == cliSeqNum) // I am pretty sure this condition is correct
                 {
-                    printf("in the correct\n");
+                    // printf("in the correct\n");
 
                     // write payload to file and check errors
                     // fprintf(stderr, "writing %i bytes to file %i\n", recvpkt.length, i);
@@ -258,7 +258,7 @@ int main(int argc, char *argv[])
                 }
                 else
                 {
-                    printf("in the else\n");
+                    // printf("in the else\n");
 
                     // server resends the ACK he already has on innapropriate packege. I forgot to implement this at commit 21e5a
                     printSend(&ackpkt, 0);
