@@ -5,6 +5,8 @@ client
 server
 out
 output_file
+*.pdf
+*.webp
 # Prerequisites
 *.d
 
