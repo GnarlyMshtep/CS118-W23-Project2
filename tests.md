@@ -1,4 +1,19 @@
+# New Questions/errors
+- 3rd message in handshake can drop
+
+
+
+
+
+
+---------------------------------------------------------------------
+
+
 **Cur, def some bug in pkg drops**
+
+
+
+
 
 ### Tests to run 
 - check failing with proxy working `python3 rdproxy.py 5000 9999 0.1`

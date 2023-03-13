@@ -244,11 +244,38 @@ int main(int argc, char *argv[])
     printSend(&pkts[0], 0);
     sendto(sockfd, &pkts[0], PKT_SIZE, 0, (struct sockaddr *)&servaddr, servaddrlen);
     timer = setTimer();
-    buildPkt(&pkts[0], seqNum, (synackpkt.seqnum + 1) % MAX_SEQN, 0, 0, 0, 1, m, buf); // this is the packet we can use on duplicate, if the previous packet drops
+    buildPkt(&pkts[0], seqNum, (synackpkt.seqnum + 1) % MAX_SEQN, 0, 0, 1, 0, m, buf); //? changed from dupack to ack
 
     seqNum += m; // update seqNum after send is convention
     e = 1;
     zero_packets_in_transmission = false;
+    while (1) // must wait to see that the server got the hanshake.
+    {
+        n = recvfrom(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&servaddr, (socklen_t *)&servaddrlen);
+        if (n > 0) // if we recieve something -- it must be the correct ack
+        {
+            s = 1;
+            zero_packets_in_transmission = true;
+            break;
+        }
+        else if (isTimeout(timer))
+        {
+            assert(!zero_packets_in_transmission); // we are waiting on nothing
+
+            printTimeout(&pkts[s]);
+
+            // send all packets in our window
+            for (int i = 0; i < calc_cur_windowsize(s, e); i++)
+            {
+                int cur_pkt_idx = (i + s) % WND_SIZE;
+                printSend(&pkts[cur_pkt_idx], 1);
+                sendto(sockfd, &pkts[cur_pkt_idx], PKT_SIZE, 0, (struct sockaddr *)&servaddr, servaddrlen);
+            }
+
+            // reset timer after timeout
+            timer = setTimer();
+        }
+    }
 
     // =====================================
     // *** TODO: Implement the rest of reliable transfer in the client ***
@@ -261,7 +288,7 @@ int main(int argc, char *argv[])
     while (!(sent_entire_file && zero_packets_in_transmission)) // while we have more to send/ potentialy waiting for ACs.
     {
         // handle messages from server
-        printf("timer: %f, timeout: %i, sent_entire_file: %i,  zero_packets_in_transmission: %i\n", timer, isTimeout(timer), sent_entire_file, zero_packets_in_transmission);
+        // printf("timer: %f, timeout: %i, sent_entire_file: %i,  zero_packets_in_transmission: %i\n", timer, isTimeout(timer), sent_entire_file, zero_packets_in_transmission);
         n = recvfrom(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&servaddr, (socklen_t *)&servaddrlen); //! no double while... I think that's okay
         if (n > 0)
         {
@@ -269,24 +296,34 @@ int main(int argc, char *argv[])
             // advance window size if ack was for the first package in window, ignore if it was not (we only resend based on timeout).
             //! # this will change for SR
             // this is okay to do only becuae network does not re-order and it is not possible to recieve lower ACK number than expcted
-
-            if (!first && (ackpkt.acknum == (pkts[mod(s - 1, WND_SIZE)].seqnum + pkts[mod(s - 1, WND_SIZE)].length) % MAX_SEQN)) // if ACK for previous
+            //! this statement does not catch duplicate ACKs, since have advanced the thing out
+            // fprintf(stderr, "info print. Acknum: %i, what I think is dup: %i}\n", ackpkt.acknum, mod(pkts[s].seqnum - PAYLOAD_SIZE, MAX_SEQN));
+            if (!first && (ackpkt.acknum == mod(pkts[s].seqnum - PAYLOAD_SIZE, MAX_SEQN))) // if ACK for previous
             {
-                fprintf(stderr, "recieved and discareded {out-of-order ACK: %i, I think I should recieve: %i, (s,e): (%i,%i) }\n", ackpkt.acknum, (pkts[s].seqnum + pkts[s].length) % MAX_SEQN, s, e);
+                fprintf(stderr, "recieved and discareded {out-of-order ACK: %i, I think I should recieve: %i, (s,e): (%i,%i) }\n", ackpkt.acknum, mod(pkts[s].seqnum - PAYLOAD_SIZE, MAX_SEQN), s, e);
             }
             else // the packet we recieve ACKs some future packet
             {
+
+                // we have a problem if the server sends us double ACKS: we increment via the first, its no longer in the sequence, and we try to get it with the second.
                 first = false;
-                while (ackpkt.acknum != (pkts[s].seqnum + pkts[s].length) % MAX_SEQN)
+                int num_ran = 0;
+                while (ackpkt.acknum != (pkts[(s + num_ran) % WND_SIZE].seqnum + pkts[(s + num_ran) % WND_SIZE].length) % MAX_SEQN && num_ran <= WND_SIZE)
                 {
+                    printf("acknum: %i, wanted: %i\n", ackpkt.acknum, (pkts[(s + num_ran) % WND_SIZE].seqnum + pkts[(s + num_ran) % WND_SIZE].length) % MAX_SEQN);
+                    // assert(num_ran < WND_SIZE + 2);
+                    num_ran++;
                     //! assrt that we neever advance past e
-                    s = (s + 1) % WND_SIZE;
+                    // s = (s + 1) % WND_SIZE;
                 }
-                s = (s + 1) % WND_SIZE;
-                timer = setTimer(); // I think this is how you restart timer
-                if (s == e)         // this is true because we just incremented s. If we just incremented e, we could have WND_SIZE packets in transmission
+                if (num_ran < WND_SIZE)
                 {
-                    zero_packets_in_transmission = true;
+                    s = (s + num_ran + 1) % WND_SIZE;
+                    timer = setTimer(); // I think this is how you restart timer
+                    if (s == e)         // this is true because we just incremented s. If we just incremented e, we could have WND_SIZE packets in transmission
+                    {
+                        zero_packets_in_transmission = true;
+                    }
                 }
             }
         }
