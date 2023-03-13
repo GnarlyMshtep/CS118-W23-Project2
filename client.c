@@ -302,6 +302,7 @@ int main(int argc, char *argv[])
             if (!first && (ackpkt.acknum == mod(pkts[s].seqnum - PAYLOAD_SIZE, MAX_SEQN))) // if ACK for previous
             {
                 // fprintf(stderr, "recieved and discareded {out-of-order ACK: %i, I think I should recieve: %i, (s,e): (%i,%i) }\n", ackpkt.acknum, mod(pkts[s].seqnum - PAYLOAD_SIZE, MAX_SEQN), s, e);
+                //fprintf(stderr, "recieved and discareded {out-of-order ACK: %i, I think I should recieve: %i, (s,e): (%i,%i) }\n", ackpkt.acknum, mod(pkts[s].seqnum - PAYLOAD_SIZE, MAX_SEQN), s, e);
             }
             else // the packet we recieve ACKs some future packet
             {
@@ -311,8 +312,8 @@ int main(int argc, char *argv[])
                 int num_ran = 0;
                 while (ackpkt.acknum != (pkts[(s + num_ran) % WND_SIZE].seqnum + pkts[(s + num_ran) % WND_SIZE].length) % MAX_SEQN && num_ran <= WND_SIZE)
                 {
-                    // printf("acknum: %i, wanted: %i\n", ackpkt.acknum, (pkts[(s + num_ran) % WND_SIZE].seqnum + pkts[(s + num_ran) % WND_SIZE].length) % MAX_SEQN);
-                    //  assert(num_ran < WND_SIZE + 2);
+                    //printf("acknum: %i, wanted: %i\n", ackpkt.acknum, (pkts[(s + num_ran) % WND_SIZE].seqnum + pkts[(s + num_ran) % WND_SIZE].length) % MAX_SEQN);
+                    // assert(num_ran < WND_SIZE + 2);
                     num_ran++;
                     //! assrt that we neever advance past e
                     // s = (s + 1) % WND_SIZE;
