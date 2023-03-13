@@ -103,18 +103,20 @@ int SeqnumToWindowIdx(int x, int start, int startseq, struct packet window[])
         return -1;
     }
     
-    if (x > (startseq + (512 * 9))) {
-        return -2;
-    }
-    
     
     int addtostart = 0;
     
+    int outofbounds = -2;
     for (int i = 0; i < 10; i++) {
-        if (startseq + (512 * i) == x) {
+        if ((startseq + (512 * i) % MAX_SEQN) == x) {
+            outofbounds = 1;
             break;
         }
         addtostart++;
+    }
+
+    if (outofbounds == -2) {
+        return -2;
     }
 
     return (start + addtostart) % 10;
@@ -227,11 +229,34 @@ int main(int argc, char *argv[])
                         }
 
                         fwrite(ackpkt.payload, 1, ackpkt.length, fp);
+                        //!printf("current seq:%d and index: %d\n", ackpkt.seqnum, s);
+                        fseek(fp, 0, SEEK_END);
+
+                        // get current position of file pointer, which gives the length of the file
+                        long fileSize = ftell(fp);
+                        if (fileSize == -1) {
+                            perror("Failed to get file size");
+                            fclose(fp);
+                            return 1;
+                        }
+
+                        //!printf("File size is %ld bytes\n", fileSize);
 
                         seqNum = ackpkt.acknum;
                         cliSeqNum = (ackpkt.seqnum + ackpkt.length) % MAX_SEQN;
 
-                        baseSeqNum = cliSeqNum; // we initialize base seq here (we expect cliseqnum for start of window)
+                        baseSeqNum = ackpkt.seqnum; // we initialize base seq here (we expect cliseqnum for start of window)
+
+                        int idxWindow = SeqnumToWindowIdx(ackpkt.seqnum, s, baseSeqNum, pkts);
+
+                        if (idxWindow != -1 && idxWindow != -2) {
+                            pkts[idxWindow] = ackpkt;
+                        }
+                        //!printf("%d\n", idxWindow);
+
+                        baseSeqNum = (baseSeqNum + ackpkt.length) % MAX_SEQN;
+                        s = (s + 1) % WND_SIZE;
+
 
                         buildPkt(&ackpkt, seqNum, cliSeqNum, 0, 0, 1, 0, 0, NULL);
                         printSend(&ackpkt, 0);
@@ -284,7 +309,7 @@ int main(int argc, char *argv[])
                 else {
                     int idxWindow = SeqnumToWindowIdx(recvpkt.seqnum, s, baseSeqNum, pkts);
                     
-                    printf("%d\n", idxWindow);
+                    //!printf("%d\n", idxWindow);
                     // if not already in window and not of bounds, we store it in the right index
                     if (idxWindow != -1 && idxWindow != -2) {
                         pkts[idxWindow] = recvpkt;
@@ -321,7 +346,7 @@ int main(int argc, char *argv[])
 
                             // we write to file
                             // other stuff is debugging stuff
-                            printf("current seq:%d and index: %d\n", currSeqNum, s);
+                            //!printf("current seq:%d and index: %d\n", currSeqNum, s);
                             fwrite(currpkt.payload, 1, currpkt.length, fp);
                             fseek(fp, 0, SEEK_END);
 
@@ -333,13 +358,14 @@ int main(int argc, char *argv[])
                                 return 1;
                             }
 
-                            printf("File size is %ld bytes\n", fileSize);
+                            //!printf("File size is %ld bytes\n", fileSize);
 
                             // we update baseseqnum to next seq num we expect for the start
                             // we also update the index of window to move right
                             // we update currSegnum += currpkt.length; this is the seqnum number we expect next to deliver
                             // if next packet in window matches the updated currsegnum, then we can deliver
                             baseSeqNum = (baseSeqNum + currpkt.length) % MAX_SEQN;
+                            //!printf("Baseseq now: %d\n", baseSeqNum);
                             s = (s + 1) % WND_SIZE;
                             currSeqNum = (currSeqNum + currpkt.length) % MAX_SEQN;
                         }

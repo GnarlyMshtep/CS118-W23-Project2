@@ -285,7 +285,7 @@ int main(int argc, char *argv[])
 
     // move nexttosend pointer by one cause it will be the next index in our window that will send stuff
     nextToSend++;
-    nextToSendSegNum = seqNum + m;
+    nextToSendSegNum = (seqNum + m) % MAX_SEQN;
 
     zero_packets_in_transmission = false;
 
@@ -333,9 +333,9 @@ int main(int argc, char *argv[])
                 // cause window size n and seq num is >2n (as shown in lecture)
             // since we memset (initialize) the entire window to have impossible seqnum, we can be sure that first ACKs won't ACK any
             for (int i = 0; i < 10; i++) {
-                int expectedACKnum = pkts[i].pkt.seqnum + pkts[i].pkt.length;
+                int expectedACKnum = (pkts[i].pkt.seqnum + pkts[i].pkt.length) % MAX_SEQN;
                 if (ackpkt.acknum == expectedACKnum) {
-                    printf("ACKed at this index: %d\n", i);
+                    //!printf("ACKed at this index: %d\n", i);
                     pkts[i].isACKed = true;
                     pkts[i].timer = 777; //random num to indicate it is finished
                     break;
@@ -350,8 +350,8 @@ int main(int argc, char *argv[])
                 sendBaseSegNum = (sendBaseSegNum + pkts[sendBase].pkt.length) % MAX_SEQN;
                 i++;
             }
-            printf("SendBase: %d\n", sendBase);
-            printf("NextToSend: %d\n", nextToSend);
+            //!printf("SendBase: %d\n", sendBase);
+            //!printf("NextToSend: %d\n", nextToSend);
         }
 
         // we then go through our window to check for any packets that may have timers that ran out
