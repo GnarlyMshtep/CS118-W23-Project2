@@ -265,6 +265,7 @@ int main(int argc, char *argv[])
                     // printf("in the else\n");
 
                     // server resends the ACK he already has on innapropriate packege. I forgot to implement this at commit 21e5a
+                    buildPkt(&ackpkt, seqNum, cliSeqNum, 0, 0, 0, 1, 0, NULL);
                     printSend(&ackpkt, 0);
                     sendto(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&cliaddr, cliaddrlen);
                     // fprintf(stderr, "recieved and discareded duplicate pckt of {starting byte: %i, len: %i, cliSeqNum: %i}\n", recvpkt.seqnum, recvpkt.length, cliSeqNum);
