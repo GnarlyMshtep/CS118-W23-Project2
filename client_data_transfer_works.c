@@ -249,34 +249,34 @@ int main(int argc, char *argv[])
     seqNum += m; // update seqNum after send is convention
     e = 1;
     zero_packets_in_transmission = false;
-    // while (1) // must wait to see that the server got the hanshake.
-    //{
-    //     n = recvfrom(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&servaddr, (socklen_t *)&servaddrlen);
-    //     if (n > 0) // if we recieve something -- it must be the correct ack
-    //     {
-    //         printRecv(&ackpkt);
-    //         s = 1;
-    //         zero_packets_in_transmission = true;
-    //         break;
-    //     }
-    //     else if (isTimeout(timer))
-    //     {
-    //         assert(!zero_packets_in_transmission); // we are waiting on nothing
-    //
-    //        printTimeout(&pkts[s]);
-    //
-    //        // send all packets in our window
-    //        for (int i = 0; i < calc_cur_windowsize(s, e); i++)
-    //        {
-    //            int cur_pkt_idx = (i + s) % WND_SIZE;
-    //            printSend(&pkts[cur_pkt_idx], 1);
-    //            sendto(sockfd, &pkts[cur_pkt_idx], PKT_SIZE, 0, (struct sockaddr *)&servaddr, servaddrlen);
-    //        }
-    //
-    //        // reset timer after timeout
-    //        timer = setTimer();
-    //    }
-    //}
+    while (1) // must wait to see that the server got the hanshake.
+    {
+        n = recvfrom(sockfd, &ackpkt, PKT_SIZE, 0, (struct sockaddr *)&servaddr, (socklen_t *)&servaddrlen);
+        if (n > 0) // if we recieve something -- it must be the correct ack
+        {
+            printRecv(&ackpkt);
+            s = 1;
+            zero_packets_in_transmission = true;
+            break;
+        }
+        else if (isTimeout(timer))
+        {
+            assert(!zero_packets_in_transmission); // we are waiting on nothing
+
+            printTimeout(&pkts[s]);
+
+            // send all packets in our window
+            for (int i = 0; i < calc_cur_windowsize(s, e); i++)
+            {
+                int cur_pkt_idx = (i + s) % WND_SIZE;
+                printSend(&pkts[cur_pkt_idx], 1);
+                sendto(sockfd, &pkts[cur_pkt_idx], PKT_SIZE, 0, (struct sockaddr *)&servaddr, servaddrlen);
+            }
+
+            // reset timer after timeout
+            timer = setTimer();
+        }
+    }
 
     // =====================================
     // *** TODO: Implement the rest of reliable transfer in the client ***
