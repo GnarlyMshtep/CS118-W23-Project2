@@ -168,6 +168,7 @@ int main(int argc, char *argv[])
     // CIRCULAR BUFFER VARIABLES
 
     struct packet pkts[WND_SIZE]; // packets for our circuilar window 
+    memset(pkts, 65535, sizeof(pkts));
     int s = 0;   // keep track of the start of our window
     int baseSeqNum; // keep a base sequence number that our window is expecting (expected seq num for start of window)
 
@@ -229,10 +230,10 @@ int main(int argc, char *argv[])
                         }
 
                         fwrite(ackpkt.payload, 1, ackpkt.length, fp);
-                        //!printf("current seq:%d and index: %d\n", ackpkt.seqnum, s);
-                        fseek(fp, 0, SEEK_END);
+                        printf("current seq:%d and index: %d\n", ackpkt.seqnum, s);
+                        // fseek(fp, 0, SEEK_END);
 
-                        // get current position of file pointer, which gives the length of the file
+                        // // get current position of file pointer, which gives the length of the file
                         long fileSize = ftell(fp);
                         if (fileSize == -1) {
                             perror("Failed to get file size");
@@ -240,7 +241,7 @@ int main(int argc, char *argv[])
                             return 1;
                         }
 
-                        //!printf("File size is %ld bytes\n", fileSize);
+                        printf("File size is %ld bytes\n", fileSize);
 
                         seqNum = ackpkt.acknum;
                         cliSeqNum = (ackpkt.seqnum + ackpkt.length) % MAX_SEQN;
@@ -252,7 +253,7 @@ int main(int argc, char *argv[])
                         if (idxWindow != -1 && idxWindow != -2) {
                             pkts[idxWindow] = ackpkt;
                         }
-                        //!printf("%d\n", idxWindow);
+                        printf("%d\n", idxWindow);
 
                         baseSeqNum = (baseSeqNum + ackpkt.length) % MAX_SEQN;
                         s = (s + 1) % WND_SIZE;
@@ -309,7 +310,7 @@ int main(int argc, char *argv[])
                 else {
                     int idxWindow = SeqnumToWindowIdx(recvpkt.seqnum, s, baseSeqNum, pkts);
                     
-                    //!printf("%d\n", idxWindow);
+                    printf("%d\n", idxWindow);
                     // if not already in window and not of bounds, we store it in the right index
                     if (idxWindow != -1 && idxWindow != -2) {
                         pkts[idxWindow] = recvpkt;
@@ -320,14 +321,15 @@ int main(int argc, char *argv[])
                         // build packet
                         seqNum = recvpkt.acknum;
                         cliSeqNum = (recvpkt.seqnum + recvpkt.length) % MAX_SEQN;
-
-                        buildPkt(&ackpkt, seqNum, cliSeqNum, 0, 0, 1, 0, 0, NULL);
+                        
 
                         // if already stored, we resend; else, we just send
                         if (idxWindow == -1) {
-                            printSend(&ackpkt, 1);
+                            buildPkt(&ackpkt, seqNum, cliSeqNum, 0, 0, 0, 1, 0, NULL);
+                            printSend(&ackpkt, 0);
                         }
                         else {
+                            buildPkt(&ackpkt, seqNum, cliSeqNum, 0, 0, 1, 0, 0, NULL);
                             printSend(&ackpkt, 0);
                         }
                         
@@ -346,7 +348,7 @@ int main(int argc, char *argv[])
 
                             // we write to file
                             // other stuff is debugging stuff
-                            //!printf("current seq:%d and index: %d\n", currSeqNum, s);
+                            printf("current seq:%d and index: %d\n", currSeqNum, s);
                             fwrite(currpkt.payload, 1, currpkt.length, fp);
                             fseek(fp, 0, SEEK_END);
 
@@ -358,14 +360,14 @@ int main(int argc, char *argv[])
                                 return 1;
                             }
 
-                            //!printf("File size is %ld bytes\n", fileSize);
+                            printf("File size is %ld bytes\n", fileSize);
 
                             // we update baseseqnum to next seq num we expect for the start
                             // we also update the index of window to move right
                             // we update currSegnum += currpkt.length; this is the seqnum number we expect next to deliver
                             // if next packet in window matches the updated currsegnum, then we can deliver
                             baseSeqNum = (baseSeqNum + currpkt.length) % MAX_SEQN;
-                            //!printf("Baseseq now: %d\n", baseSeqNum);
+                            printf("Baseseq now: %d\n", baseSeqNum);
                             s = (s + 1) % WND_SIZE;
                             currSeqNum = (currSeqNum + currpkt.length) % MAX_SEQN;
                         }
@@ -426,5 +428,6 @@ int main(int argc, char *argv[])
         }
 
         seqNum = lastackpkt.acknum;
+        memset(pkts, 65535, sizeof(pkts));
     }
 }
