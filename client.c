@@ -41,6 +41,7 @@ struct WindowPacket
     struct packet pkt;
     double timer;
     bool isACKed;
+    bool initial;
 };
 
 // Printing Functions: Call them on receiving/sending/packet timeout according
@@ -239,6 +240,10 @@ int main(int argc, char *argv[])
     // we memset all the packets to have 65535 (max unsigned short value) cause we know seqnum can't be that
     memset(pkts, 65535, sizeof(pkts));
 
+    for (int i = 0; i < 10; i++) {
+        pkts[i].initial = true;
+    }
+
     // sendbase index (start) of our window 
     // sendBaseSegnum didn't really use  (just in case)
     int sendBase = 0;
@@ -275,6 +280,7 @@ int main(int argc, char *argv[])
     buildPkt(&pkts[0].pkt, seqNum, (synackpkt.seqnum + 1) % MAX_SEQN, 0, 0, 1, 0, m, buf); // ack == 1 becaous eof the protocol
     pkts[0].timer = setTimer();
     pkts[0].isACKed = false;
+    pkts[0].initial = false;
 
     printSend(&pkts[0].pkt, 0);
     sendto(sockfd, &pkts[0].pkt, PKT_SIZE, 0, (struct sockaddr *)&servaddr, servaddrlen);
@@ -304,8 +310,9 @@ int main(int argc, char *argv[])
         // this part may be useless, but just for extra protection
         zero_packets_in_transmission = true;
         for (int i = 0; i < 10; i++) {
-            if (pkts[i].isACKed == false) {
+            if (pkts[i].isACKed == false && pkts[i].initial == false) {
                 zero_packets_in_transmission = false;
+                break;
             }
         }
 
@@ -345,7 +352,7 @@ int main(int argc, char *argv[])
             // we can move sendbase consecutively as long as we have consecutive ACKed packets
             // we have i < 10 cause there may be a case where entire window is ACKED
             int i = 0;
-            while (pkts[sendBase].isACKed && i < 10) {
+            while (pkts[sendBase].isACKed && i < 10 && pkts[sendBase].initial == false) {
                 sendBase = (sendBase + 1) % WND_SIZE;
                 sendBaseSegNum = (sendBaseSegNum + pkts[sendBase].pkt.length) % MAX_SEQN;
                 i++;
@@ -361,7 +368,8 @@ int main(int argc, char *argv[])
 
 
         for (int j = 0, i = sendBase; j < iter; i = (i + 1) % WND_SIZE, j++) {
-            if (pkts[i].isACKed == false && isTimeout(pkts[i].timer)) {
+            if (pkts[i].initial == false && pkts[i].isACKed == false && isTimeout(pkts[i].timer)) {
+                //printf("any?\n");
                 printTimeout(&pkts[i].pkt);
                 printSend(&pkts[i].pkt, 1);
                 sendto(sockfd, &pkts[i].pkt, PKT_SIZE, 0, (struct sockaddr *)&servaddr, servaddrlen);
@@ -372,7 +380,6 @@ int main(int argc, char *argv[])
         // we then check our window if we can send any more packets
         // we can if there is some gap between next to send and sendbase
         // at the end of this; next to send should always be equal to sendbase
-
         iter = calc_cur_windowsize(nextToSend, sendBase);
         if (iter == 10 && zero_packets_in_transmission == false) {
             iter = 0;
@@ -391,6 +398,7 @@ int main(int argc, char *argv[])
                 buildPkt(&pkts[nextToSend].pkt, nextToSendSegNum, 0 % MAX_SEQN, 0, 0, 0, 0, m, buf); // correct because: ack number is 0, seqnum updated after send
                 pkts[nextToSend].timer = setTimer();
                 pkts[nextToSend].isACKed = false;
+                pkts[nextToSend].initial = false;
                 printSend(&pkts[nextToSend].pkt, 0);
                 sendto(sockfd, &pkts[nextToSend].pkt, PKT_SIZE, 0, (struct sockaddr *)&servaddr, servaddrlen);
 
